@@ -35,3 +35,31 @@ def send_activation_email(request, user, token):
     msg = EmailMultiAlternatives(subject, body_html, settings.EMAIL_HOST_USER, [user.email])
     msg.attach_alternative(body_html, "text/html")
     msg.send(fail_silently=False)
+
+def create_password_reset(user, expiry_hours=24):
+    """
+    Creates a password reset token (hashed in DB). Invalidates previous unused tokens.
+    Returns (raw_token, token_obj)
+    """
+    from .models import PasswordResetToken
+    token = generate_token()
+    token_hash = hash_token(token)            # reuse hash_token
+    expires_at = timezone.now() + timedelta(hours=expiry_hours)
+    # Mark older tokens used/invalid
+    PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
+    reset_obj = PasswordResetToken.objects.create(user=user, token_hash=token_hash, expires_at=expires_at)
+    return token, reset_obj
+
+def send_password_reset_email(request, user, token):
+    """
+    Builds a reset link and sends HTML email.
+    Link format: /accounts/reset-password/?token=<token>&email=<email>
+    """
+    reset_path = reverse("accounts:reset_password")   # we will map this in urls
+    link = request.build_absolute_uri(f"{reset_path}?token={token}&email={user.email}")
+    subject = "Reset your password"
+    context = {"user": user, "reset_link": link, "expires": 24}
+    body_html = render_to_string("accounts/reset_email.html", context)
+    msg = EmailMultiAlternatives(subject, body_html, settings.EMAIL_HOST_USER, [user.email])
+    msg.attach_alternative(body_html, "text/html")
+    msg.send(fail_silently=False)

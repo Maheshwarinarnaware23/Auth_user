@@ -1,1 +1,9 @@
 Registration success for maheshwarinarnaware@gmail.com category=Stakeholder
+Registration failed: {"__all__": [{"message": "This email is already registered for the selected category.", "code": ""}]}
+Registration failed: {"__all__": [{"message": "This email is already registered for the selected category.", "code": ""}]}
+Registration success for rajanarnaware@gmail.com category=Scientist
+Registration success for maheshwarinarnaware23@gmail.com category=Scientist
+Registration failed: {"__all__": [{"message": "This email is already registered for the selected category.", "code": ""}], "captcha": [{"message": "Captcha is incorrect.", "code": ""}]}
+Registration failed: {"__all__": [{"message": "This email is already registered for the selected category.", "code": ""}]}
+Registration success for rajanarnaware07@gmail.com category=Researcher
+Registration success for passabook100@gmail.com category=Researcher
