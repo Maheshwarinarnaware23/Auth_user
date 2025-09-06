@@ -1,0 +1,61 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Django stuff
+*.sqlite3
+db.sqlite3
+/staticfiles/
+/media/
+
+# Environment variables / secrets
+.env
+*.env
+
+# Logs
+*.log
+
+# IDEs / editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PyCharm
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Coverage reports
+htmlcov/
+.coverage
+*.cover
+*.py,cover
+
+# mypy / type checker
+.mypy_cache/
+.dmypy.json
+
+# pip / poetry / package manager
+pip-log.txt
+poetry.lock
+
+# Node / frontend stuff (if you use npm/yarn)
+node_modules/
+dist/
+build/
