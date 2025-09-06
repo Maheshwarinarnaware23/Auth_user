@@ -13,14 +13,17 @@
     <div class="col-md-6">
       <div class="card p-4 shadow-sm">
         <h3 class="card-title mb-3">Create an account</h3>
+
         <form id="regForm" method="post" novalidate>
           {% csrf_token %}
+          <!-- Email -->
           <div class="mb-3">
             <label class="form-label">Email (Gmail only)</label>
             <input type="email" name="email" id="email" class="form-control" required>
             <div class="invalid-feedback" id="emailError"></div>
           </div>
 
+          <!-- Password -->
           <div class="mb-3">
             <label class="form-label">Password</label>
             <input type="password" name="password" id="password" class="form-control" required>
@@ -28,12 +31,14 @@
             <div class="invalid-feedback" id="passError"></div>
           </div>
 
+          <!-- Confirm Password -->
           <div class="mb-3">
             <label class="form-label">Confirm Password</label>
             <input type="password" name="confirm_password" id="confirm_password" class="form-control" required>
             <div class="invalid-feedback" id="confirmError"></div>
           </div>
 
+          <!-- Category -->
           <div class="mb-3">
             <label class="form-label">Category</label>
             <select name="category" id="category" class="form-select" required>
@@ -45,20 +50,28 @@
             <div class="invalid-feedback">Select a category.</div>
           </div>
 
+          <!-- Captcha -->
           <div class="mb-3">
             <label class="form-label">Captcha: {{ captcha_q }}</label>
             <input type="text" name="captcha" id="captcha" class="form-control" required>
             <div class="invalid-feedback" id="captchaError"></div>
           </div>
 
+          <!-- Terms -->
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" id="terms" name="terms">
             <label class="form-check-label">I agree to Terms & Conditions</label>
             <div class="invalid-feedback">You must accept terms.</div>
           </div>
 
+          <!-- Submit -->
           <button class="btn btn-primary w-100" type="submit">Register</button>
         </form>
+
+        <!-- 👇 Already registered? -->
+        <p class="mt-3 text-center">
+          Already registered? <a href="{% url 'accounts:login' %}">Login here</a>
+        </p>
       </div>
     </div>
   </div>

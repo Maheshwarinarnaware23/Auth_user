@@ -1,21 +1,25 @@
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 
 # Create your views here.
 # accounts/views.py
 # accounts/views.py
 import logging
+import re
 import hashlib
 from datetime import timedelta
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login, logout
+from django.views import View
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
 from .forms import RegistrationForm
 from .models import User, ActivationToken, Category
-from .utils import create_activation, hash_token, send_activation_email
+from .utils import create_activation, hash_token, send_activation_email, send_password_reset_email, \
+    create_password_reset
 import secrets
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -101,23 +105,135 @@ def resend_activation_view(request):
     return render(request, "accounts/activation_result.html", {"message":"New activation link sent to your email."})
 
 # Template login that sets JWT cookies (HttpOnly)
-@require_http_methods(["GET","POST"])
+@require_http_methods(["GET", "POST"])
 def login_view(request):
     if request.method == "GET":
         return render(request, "accounts/login.html")
+
     email = request.POST.get("email", "").lower()
     password = request.POST.get("password", "")
-    # Note: authenticate expects username field (our USERNAME_FIELD=email)
+
+    # authenticate user
     user = authenticate(request, username=email, password=password)
     if user is None:
-        return render(request, "accounts/login.html", {"error":"Invalid credentials"})
+        return render(request, "accounts/login.html", {"error": "Invalid credentials"})
     if not user.is_active:
-        return render(request, "accounts/login.html", {"error":"Account inactive. Activate via email."})
-    # Create JWTs using simplejwt
+        return render(request, "accounts/login.html", {"error": "Account inactive. Activate via email."})
+
+    # ✅ mark user logged in (session-based auth)
+    login(request, user)
+
+    # still generate JWT if you want APIs later
     refresh = RefreshToken.for_user(user)
     access_token = str(refresh.access_token)
-    response = redirect("/")  # desired landing
-    # set cookies - HttpOnly, Secure recommended for prod
-    response.set_cookie("access", access_token, httponly=True, max_age=15*60, secure=not settings.DEBUG, samesite="Lax")
-    response.set_cookie("refresh", str(refresh), httponly=True, max_age=7*24*3600, secure=not settings.DEBUG, samesite="Lax")
+
+    response = redirect("accounts:home")
+    response.set_cookie(
+        "access", access_token,
+        httponly=True, max_age=15*60,
+        secure=not settings.DEBUG, samesite="Lax"
+    )
+    response.set_cookie(
+        "refresh", str(refresh),
+        httponly=True, max_age=7*24*3600,
+        secure=not settings.DEBUG, samesite="Lax"
+    )
     return response
+
+class ForgotPasswordView(View):
+    def get(self, request):
+        captcha_q = _generate_captcha(request)
+        return render(request, "accounts/forgot_password.html", {"captcha_q": captcha_q})
+
+    def post(self, request):
+        email = request.POST.get("email", "").strip().lower()
+        posted_captcha = request.POST.get("captcha", "").strip()
+        expected = str(request.session.get("captcha_answer", ""))
+        # Protect against enumeration: always show neutral success message
+        neutral_success_msg = "If an account exists for the provided email, a password reset link has been sent."
+
+        # Validate captcha
+        if posted_captcha != expected:
+            messages.error(request, "Captcha is incorrect.")
+            return redirect("accounts:forgot_password")
+
+        # Try to fetch user (do not reveal existence)
+        try:
+            user = User.objects.get(email__iexact=email, is_active=True)
+        except User.DoesNotExist:
+            # Still show neutral message — prevents user enumeration
+            messages.success(request, neutral_success_msg)
+            return redirect("accounts:forgot_password")
+
+        # Create token and send email
+        token, _ = create_password_reset(user)
+        send_password_reset_email(request, user, token)
+        messages.success(request, neutral_success_msg)
+        return redirect("accounts:forgot_password")
+
+class ResetPasswordView(View):
+    def get(self, request):
+        token = request.GET.get("token", "")
+        email = request.GET.get("email", "").strip().lower()
+        if not token or not email:
+            messages.error(request, "Invalid password reset link.")
+            return redirect("accounts:forgot_password")
+
+        from .models import PasswordResetToken
+        try:
+            user = User.objects.get(email__iexact=email)
+            token_obj = PasswordResetToken.objects.get(user=user, token_hash=hash_token(token), used=False)
+        except (User.DoesNotExist, PasswordResetToken.DoesNotExist):
+            messages.error(request, "Invalid or expired password reset link.")
+            return redirect("accounts:forgot_password")
+
+        if not token_obj.is_valid():
+            messages.error(request, "This password reset link has expired or already been used.")
+            return redirect("accounts:forgot_password")
+
+        # Show reset form
+        return render(request, "accounts/reset_password.html", {"email": email, "token": token})
+
+    def post(self, request):
+        password = request.POST.get("password", "")
+        confirm_password = request.POST.get("confirm_password", "")
+        email = request.POST.get("email", "").strip().lower()
+        token = request.POST.get("token", "")
+
+        if password != confirm_password:
+            messages.error(request, "Passwords do not match.")
+            return redirect(request.path + f"?token={token}&email={email}")
+
+        from .models import PasswordResetToken
+        try:
+            user = User.objects.get(email__iexact=email)
+            token_obj = PasswordResetToken.objects.get(user=user, token_hash=hash_token(token), used=False)
+        except (User.DoesNotExist, PasswordResetToken.DoesNotExist):
+            messages.error(request, "Invalid request.")
+            return redirect("accounts:forgot_password")
+
+        if not token_obj.is_valid():
+            messages.error(request, "This password reset link has expired or already been used.")
+            return redirect("accounts:forgot_password")
+
+        # Validate password server-side (same regex as registration)
+        PASS_RE = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#\$%\^&\*]).{8,}$')
+        if not PASS_RE.match(password):
+            messages.error(request, "Password must be min 8 characters with uppercase, lowercase, digit and special char.")
+            return redirect(request.path + f"?token={token}&email={email}")
+
+        # Update password and invalidate token
+        user.set_password(password)
+        user.save()
+        token_obj.mark_used()
+
+        messages.success(request, "Password has been reset. You can now login.")
+        return redirect("accounts:login")
+
+@login_required
+def home_view(request):
+    return render(request, "accounts/home.html", {"user": request.user})
+
+def logout_view(request):
+    logout(request)  # clears the session
+    return redirect("accounts:login")  # redirect to login after logout
