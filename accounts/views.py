@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import render
 
 # Create your views here.
@@ -16,8 +17,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.views import View
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
-from .forms import RegistrationForm
-from .models import User, ActivationToken, Category
+from .forms import RegistrationForm, DocumentForm
+from .models import User, ActivationToken, Category, Document
 from .utils import create_activation, hash_token, send_activation_email, send_password_reset_email, \
     create_password_reset
 import secrets
@@ -232,8 +233,29 @@ class ResetPasswordView(View):
 
 @login_required
 def home_view(request):
-    return render(request, "accounts/home.html", {"user": request.user})
+    documents = Document.objects.filter(user=request.user).order_by('-uploaded_at')
+    return render(request, "accounts/home.html", {"user": request.user, "documents": documents})
 
 def logout_view(request):
     logout(request)  # clears the session
     return redirect("accounts:login")  # redirect to login after logout
+
+
+class UploadDocumentView(LoginRequiredMixin, View):
+    def get(self, request):
+        form = DocumentForm()
+        documents = Document.objects.filter(user=request.user).order_by('-uploaded_at')
+        return render(request, "accounts/upload_document.html", {"form": form, "documents": documents})
+
+    def post(self, request):
+        form = DocumentForm(request.POST, request.FILES)
+        if form.is_valid():
+            doc = form.save(commit=False)
+            doc.user = request.user
+            doc.save()
+            messages.success(request, "File uploaded successfully.")
+            return redirect("accounts:upload_document")
+        else:
+            messages.error(request, "Error uploading file. Please try again.")
+        documents = Document.objects.filter(user=request.user).order_by('-uploaded_at')
+        return render(request, "accounts/upload_document.html", {"form": form, "documents": documents})

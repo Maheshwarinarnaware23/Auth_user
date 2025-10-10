@@ -1,6 +1,7 @@
 # accounts/urls.py
 from django.urls import path
 from . import views
+from .views import UploadDocumentView
 
 app_name = "accounts"
 urlpatterns = [
@@ -12,6 +13,6 @@ urlpatterns = [
     path("reset-password/", views.ResetPasswordView.as_view(), name="reset_password"),
     path("home/", views.home_view, name="home"),
     path("logout/", views.logout_view, name="logout"),
+    path('upload/', UploadDocumentView.as_view(), name='upload_document'),
 
 ]
-
