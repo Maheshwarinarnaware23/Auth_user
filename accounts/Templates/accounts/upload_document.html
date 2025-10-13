@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Document</title>
+</head>
+<body>
+    <h2>Upload Document</h2>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Upload</button>
+    </form>
+
+    <hr>
+    <h3>Your Uploaded Files</h3>
+    <ul>
+        {% for doc in documents %}
+            <li>
+                <a href="{{ doc.file.url }}" target="_blank">{{ doc.file.name }}</a>
+                ({{ doc.uploaded_at }})
+            </li>
+        {% empty %}
+            <li>No files uploaded yet.</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
